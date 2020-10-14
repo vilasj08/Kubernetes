@@ -1,0 +1,63 @@
+# Creating istio secure gateway
+
+1. Create a certificate and private key
+
+$ openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -subj '/O=example Inc./CN=example.com' -keyout example.com.key 
+-out example.com.crt
+
+2. Ensure that you have your application service deployed.
+
+3. Create a secret using that .key and .crt file
+kubectl create -n istio-system secret tls httpbin-credential --key=httpbin.example.com.key --cert=httpbin.example.com.crt
+
+4. Create Gateway spec (.yaml)
+You can use cat command or vi to write it.
+
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: mygateway
+spec:
+  selector:
+    istio: ingressgateway 
+    namespace: istio-system
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: <secret-name-here>
+    hosts:
+    - <host> (Ex: app.example.com)
+
+Use kubectl apply -f gw.yaml in order to create gateway.
+
+5. Define virtual service
+
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: vs
+spec:
+  hosts:
+  - <host>
+  gateways:
+  - mygateway
+  http:
+  - match:
+    - uri:
+        prefix: /status
+    - uri:
+        prefix: /delay
+    route:
+    - destination:
+        port:
+          number: <Port number>
+        host: <host>
+
+
+Use kubectl apply -f vs.yaml in order to create virtual service
+
+Now you can access your application using the host defined.
